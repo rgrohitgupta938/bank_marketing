@@ -22,3 +22,5 @@ dist/
 *.bak
 *.swp
 \
+.cache_s3/
+.streamlit/secrets.toml

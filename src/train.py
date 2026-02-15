@@ -3,6 +3,7 @@
 import os
 import time
 import joblib
+import boto3
 import numpy as np
 import pandas as pd
 
@@ -24,6 +25,7 @@ from src.utils import (
     write_latest_run,
 )
 from src.evaluate import evaluate_model
+from src.cloud import upload_dir_to_s3
 
 
 # -----------------------------
@@ -31,10 +33,17 @@ from src.evaluate import evaluate_model
 # -----------------------------
 DATA_PATH = "data/bank-full.csv"
 ARTIFACTS_ROOT = "artifacts"
-MODELS_DIR = "models"
+MODELS_ROOT = "models"
 LOG_FILE = "logs/train.log"
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
+
+# -----------------------------
+# S3 CONFIG (ENV-DRIVEN)
+# -----------------------------
+UPLOAD_TO_S3 = os.getenv("UPLOAD_TO_S3", "0") == "1"
+S3_BUCKET = os.getenv("S3_BUCKET", "")
+S3_PREFIX = os.getenv("S3_PREFIX", "bank-marketing")  # e.g. "bank-marketing"
 
 
 def to_dense(X):
@@ -54,9 +63,13 @@ def to_dense(X):
 
 def main():
     run_id = make_run_id("bank")
+
     run_dir = os.path.join(ARTIFACTS_ROOT, "runs", run_id)
     ensure_dir(run_dir)
-    ensure_dir(MODELS_DIR)
+
+    # Per-run models directory: models/<run_id>/
+    run_models_dir = os.path.join(MODELS_ROOT, run_id)
+    ensure_dir(run_models_dir)
 
     logger = setup_logger(LOG_FILE)
     logger.info(f"Starting training run: {run_id}")
@@ -104,8 +117,10 @@ def main():
         {"feature_names": feature_names},
     )
 
-    # Save preprocessor
-    joblib.dump(preprocessor, os.path.join(MODELS_DIR, "preprocessor.pkl"))
+    # Save preprocessor (LOCAL, per-run)
+    preprocessor_path = os.path.join(run_models_dir, "preprocessor.pkl")
+    joblib.dump(preprocessor, preprocessor_path)
+    logger.info(f"Preprocessor saved to {preprocessor_path}")
 
     # -----------------------------
     # Define Models
@@ -180,7 +195,8 @@ def main():
         metrics["train_time_sec"] = round(train_time, 3)
         metrics_list.append(metrics)
 
-        model_path = os.path.join(MODELS_DIR, f"{name}.pkl")
+        # Save model (LOCAL, per-run)
+        model_path = os.path.join(run_models_dir, f"{name}.pkl")
         joblib.dump(model, model_path)
 
         logger.info(f"{name} saved to {model_path}")
@@ -202,9 +218,38 @@ def main():
         "test_size": TEST_SIZE,
         "random_state": RANDOM_STATE,
         "models": list(models.keys()),
+        "run_id": run_id,
+        "run_dir": run_dir,
+        "run_models_dir": run_models_dir,
     }
     write_json(os.path.join(run_dir, "run_config.json"), run_config)
+
+    # Keeps whatever your existing utility does (fine to keep)
     write_latest_run(ARTIFACTS_ROOT, run_id)
+
+    # Streamlit-friendly pointer
+    latest_json_path = os.path.join(ARTIFACTS_ROOT, "latest_run.json")
+    write_json(latest_json_path, {"run_id": run_id})
+    logger.info(f"Latest run pointer saved to {latest_json_path}")
+
+    # -----------------------------
+    # Optional: Upload artifacts + THIS RUN's models + latest_run.json to S3
+    # -----------------------------
+    if UPLOAD_TO_S3:
+        if not S3_BUCKET:
+            logger.warning("UPLOAD_TO_S3=1 but S3_BUCKET is not set. Skipping S3 upload.")
+        else:
+            try:
+                logger.info("Uploading run artifacts and per-run models to S3...")
+                upload_dir_to_s3(run_dir, S3_BUCKET, f"{S3_PREFIX}/runs/{run_id}")
+                upload_dir_to_s3(run_models_dir, S3_BUCKET, f"{S3_PREFIX}/models/{run_id}")
+
+                s3 = boto3.client("s3")
+                s3.upload_file(latest_json_path, S3_BUCKET, f"{S3_PREFIX}/latest_run.json")
+
+                logger.info("S3 upload completed successfully.")
+            except Exception as e:
+                logger.exception(f"S3 upload failed (local artifacts still saved). Error: {e}")
 
     logger.info(f"Training completed successfully for run: {run_id}")
 
