@@ -232,9 +232,6 @@ def main():
     write_json(latest_json_path, {"run_id": run_id})
     logger.info(f"Latest run pointer saved to {latest_json_path}")
 
-    # -----------------------------
-    # Optional: Upload artifacts + THIS RUN's models + latest_run.json to S3
-    # -----------------------------
     if UPLOAD_TO_S3:
         if not S3_BUCKET:
             logger.warning("UPLOAD_TO_S3=1 but S3_BUCKET is not set. Skipping S3 upload.")
