@@ -76,40 +76,12 @@ The following models were trained and evaluated:
 
 ---
 
-## Key Insights
+| **ML Model Name**            | **Observation about model performance**                                                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Logistic Regression**      | Achieved the highest F1 score (0.5503) and MCC (0.4973) with the best recall (0.7524). Performs very well in detecting minority class (subscribers). Most balanced and reliable model for this imbalanced dataset. |
+| **Decision Tree**            | Moderate accuracy but very low recall (0.1890) and F1 (0.2601). Weak minority class detection. Likely overfits majority class and lacks generalization without ensemble support.                                   |
+| **kNN**                      | High accuracy (0.8934) but low recall (0.2259). Precision is decent, but overall F1 (0.3315) indicates imbalance in prediction. Sensitive to class imbalance and feature scaling.                                  |
+| **Naive Bayes**              | Moderate and stable performance across metrics. F1 (0.4244) and MCC (0.3420) show reasonable minority detection but limited by independence assumption.                                                            |
+| **Random Forest (Ensemble)** | Highest AUC (0.9135) and highest accuracy (0.8959). Strong ranking ability but very low recall (0.1749), meaning many subscribers are missed. Favors majority class.                                               |
+| **XGBoost (Ensemble)**       | Strong overall balanced model with F1 (0.5301) and MCC (0.4670). Maintains good precision–recall tradeoff and handles nonlinear patterns effectively. Best performing ensemble model.                              |
 
-### 🔹 Best F1 Score → Logistic Regression
-
-- Highest F1 (0.5503)
-- Highest MCC (0.4973)
-- Best Recall (0.7524)
-- Strong at detecting actual subscribers
-
-### 🔹 Best AUC → Random Forest
-
-- Highest ranking performance (0.9135)
-- However, low recall
-
-### 🔹 Most Balanced Model → XGBoost
-
-- Strong overall performance
-- Balanced precision and recall
-
----
-
-## Why Accuracy Is Not Enough
-
-The dataset is highly imbalanced:
-
-- 88% No
-- 12% Yes
-
-A model predicting all "No" would already achieve 88% accuracy.
-
-Therefore, we focus on:
-
-- F1 Score
-- AUC
-- MCC
-  
----
